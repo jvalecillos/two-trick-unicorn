@@ -1,0 +1,17 @@
+{
+  "name": "two-trick-unicorn",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite src",
+    "build": "node tools/build.mjs build",
+    "pack": "node tools/build.mjs pack",
+    "size": "node tools/build.mjs size",
+    "check": "node tools/build.mjs check"
+  },
+  "devDependencies": {
+    "terser": "5.50.0",
+    "vite": "8.2.1"
+  }
+}
