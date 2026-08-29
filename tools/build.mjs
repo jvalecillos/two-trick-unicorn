@@ -34,7 +34,12 @@ async function build() {
     .replace(/<!--[^]*?-->/g, "")
     .replace(/>\s+</g, "><")
     .trim();
-  const source = readFileSync(sourceJs, "utf8");
+  const developmentSource = readFileSync(sourceJs, "utf8");
+  const source = developmentSource.replace(
+    "const DEBUG = true;",
+    "const DEBUG = false;",
+  );
+  if (source === developmentSource) throw Error("DEBUG declaration was not found");
   const result = await minify(source, {
     compress: { passes: 2 },
     mangle: { toplevel: true },
@@ -69,6 +74,7 @@ function validate() {
   if (/https?:|(?:src|href)=["']\/\//i.test(html)) {
     throw Error("Packaged HTML contains an external resource reference");
   }
+  if (/TEST |\/24/.test(html)) throw Error("Packaged HTML contains debug UI");
   console.log("Validated top-level index.html and offline resources");
 }
 
