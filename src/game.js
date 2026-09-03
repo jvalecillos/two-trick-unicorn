@@ -37,10 +37,21 @@ let leapTime = 0;
 let blastTime = 0;
 let speedTier = 0;
 let formationTest = -1;
+let worldColor = 70;
+let protection = 0;
+let combo = 0;
+let burstTime = 0;
+let learned = 0;
 let entities = [];
 
 function score() {
   return (distance / 10 + bonus) | 0;
+}
+
+function reward(points, colorGain) {
+  bonus += points * (burstTime ? 2 : 1);
+  worldColor = Math.min(100, worldColor + colorGain);
+  if (++combo === 8) burstTime = 4;
 }
 
 function lanePosition(targetLane, y) {
@@ -101,6 +112,7 @@ function drawRoad() {
 
 function drawPlayer() {
   const lift = jumpLift();
+  context.globalAlpha = protection && ((protection * 12) | 0) % 2 ? 0.3 : 1;
 
   context.fillStyle = "#24163288";
   context.beginPath();
@@ -117,6 +129,34 @@ function drawPlayer() {
   context.lineTo(playerX + 9, 382 - lift);
   context.lineTo(playerX + 15, 416 - lift);
   context.fill();
+  context.globalAlpha = 1;
+}
+
+function drawBurst() {
+  if (burstTime) {
+    context.globalAlpha = 0.7;
+    for (let index = 0; index < 3; index++) {
+      context.fillStyle = ribbonColors[index];
+      context.fillRect(playerX - 30 + index * 20, 450, 20, 90);
+    }
+    for (let index = 0; index < 7; index++) {
+      context.fillStyle = ribbonColors[index % 3];
+      context.beginPath();
+      context.arc(
+        playerX + Math.sin(distance / 30 + index) * 65,
+        425 - jumpLift() + Math.cos(distance / 30 + index) * 55,
+        5,
+        0,
+        7,
+      );
+      context.fill();
+    }
+    if (burstTime > 3.8) {
+      context.fillStyle = "#fff8";
+      context.fillRect(0, 0, width, height);
+    }
+    context.globalAlpha = 1;
+  }
 }
 
 function drawBlast() {
@@ -247,15 +287,26 @@ function drawMessage(title, subtitle) {
 }
 
 function draw() {
+  context.filter = `saturate(${worldColor}%)`;
   drawRoad();
   drawEntities();
   drawBlast();
+  drawBurst();
   drawPlayer();
+  context.filter = "none";
   if (state === 1) {
     context.fillStyle = "white";
     context.textAlign = "left";
     context.font = "bold 24px sans-serif";
     context.fillText(`SCORE ${score()}`, 24, 38);
+    context.font = "bold 16px sans-serif";
+    context.fillText("COLOR", 24, 65);
+    context.fillStyle = "#33283d";
+    context.fillRect(85, 52, 150, 16);
+    context.fillStyle = ribbonColors[0];
+    context.fillRect(85, 52, worldColor * 1.5, 16);
+    context.fillStyle = "white";
+    context.fillText(burstTime ? "SPECTRAL BURST" : `COMBO ${combo}/8`, 24, 92);
     if (DEBUG) {
       context.textAlign = "right";
       context.fillText(
@@ -266,13 +317,15 @@ function draw() {
         38,
       );
     }
-    if (formationCount < 5) {
+    const lesson =
+      !(learned & 1) && entities.some((entity) => entity.type === rift)
+        ? "PRESS SPACE TO LEAP RIFTS"
+        : !(learned & 2) && entities.some((entity) => entity.type === cloud)
+          ? "PRESS X TO BLAST CLOUDS"
+          : "";
+    if (lesson) {
       context.textAlign = "center";
-      context.fillText(
-        formationCount < 3 ? "SPACE · LEAP RIFTS" : "X · BLAST CLOUDS",
-        width / 2,
-        70,
-      );
+      context.fillText(lesson, width / 2, 70);
     }
   }
   if (state === 0) {
@@ -296,6 +349,9 @@ function start() {
     blastTime = 0;
     speedTier = 0;
     if (DEBUG) formationTest = -1;
+    worldColor = 70;
+    protection = 0;
+    combo = burstTime = 0;
     entities = [];
     draw();
   }
@@ -329,6 +385,9 @@ addEventListener("keydown", (event) => {
     formationRows = [];
     formationDelay = 0.5;
     leapTime = blastTime = 0;
+    worldColor = 70;
+    protection = 0;
+    combo = burstTime = 0;
     lane = 1;
     playerX = 480;
     entities = [];
@@ -346,6 +405,9 @@ function update(time) {
   if (state === 1) {
     const speed = speeds[speedTier];
     distance += delta * speed;
+    if (burstTime) bonus += (delta * speed) / 10;
+    protection = Math.max(0, protection - delta);
+    if (burstTime && !(burstTime = Math.max(0, burstTime - delta))) combo = 0;
     leapTime = Math.max(0, leapTime - delta);
     blastTime = Math.max(0, blastTime - delta);
     playerX += (lanePosition(lane, 440) - playerX) * Math.min(1, delta * 12);
@@ -364,19 +426,28 @@ function update(time) {
         Math.abs(entity.x - blastPosition(entity.y)) < entity.size + 15
       ) {
         entity.type = star;
-        bonus += 50;
+        learned |= 2;
+        reward(50, 1);
       }
       if (
         Math.abs(entity.x - playerX) < entity.size + 25 &&
         entity.y > 405 &&
         entity.y < 465
       ) {
-        if (entity.type === star) bonus += 100;
+        if (entity.type === star) {
+          reward(100, 5);
+        }
         else if (entity.type === rift && leapTime > 0.25) {
           entity.type = bridge;
-          bonus += 50;
+          learned |= 1;
+          reward(50, 1);
           return true;
-        } else if (entity.type !== bridge) state = 2;
+        } else if (entity.type !== bridge && !protection && !burstTime) {
+          worldColor -= 25;
+          protection = 1;
+          combo = 0;
+          if (worldColor <= 0) state = 2;
+        }
         return entity.type === bridge;
       }
       return entity.y < 580;
