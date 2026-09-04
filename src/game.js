@@ -1,5 +1,6 @@
 const canvas = document.querySelector("canvas");
 const context = canvas.getContext("2d");
+// The release build flips this constant so Terser removes test controls and UI.
 const DEBUG = true;
 const width = canvas.width;
 const height = canvas.height;
@@ -9,6 +10,7 @@ const star = 1;
 const rift = 2;
 const bridge = 3;
 const speeds = [220, 280, 340];
+// Formation rows use c=cloud, s=star, r=rift, .=empty; / advances one row.
 const formations = [
   "r..",
   ".r.",
@@ -36,16 +38,34 @@ let mirrorFormation = false;
 let leapTime = 0;
 let blastTime = 0;
 let speedTier = 0;
+let runTime = 0;
+let actFlash = 0;
+let restored = false;
 let formationTest = -1;
+let testSpeed = -1;
 let worldColor = 70;
 let protection = 0;
 let combo = 0;
 let burstTime = 0;
 let learned = 0;
 let entities = [];
+let best = 0;
+
+try {
+  best = +localStorage.TTU26 || 0;
+} catch {}
 
 function score() {
   return (distance / 10 + bonus) | 0;
+}
+
+function saveBest() {
+  if (score() > best) {
+    best = score();
+    try {
+      localStorage.TTU26 = best;
+    } catch {}
+  }
 }
 
 function reward(points, colorGain) {
@@ -61,6 +81,7 @@ function lanePosition(targetLane, y) {
 }
 
 function jumpLift() {
+  // The 0.7 s timer reserves its final 0.25 s for grounded recovery.
   return leapTime > 0.25
     ? Math.sin(((leapTime - 0.25) / 0.45) * Math.PI) * 60
     : 0;
@@ -194,20 +215,26 @@ function scheduleFormation() {
   if (!formationRows.length) {
     if (DEBUG && formationTest === 24) formationTest = -1;
     const testing = DEBUG && formationTest >= 0;
+    // Later acts drop the simplest formations while retaining proven patterns.
+    const formationStart = speedTier === 2 ? 6 : 4;
     const formation =
       testing
         ? formations[formationTest >> 1]
         : formationCount < 4
         ? formations[formationCount]
-        : formations[4 + ((Math.random() * 8) | 0)];
+        : formations[
+            formationStart +
+              ((Math.random() * (speedTier ? 12 - formationStart : 3)) | 0)
+          ];
     formationRows = formation.split("/");
     mirrorFormation = testing ? formationTest++ % 2 : Math.random() > 0.5;
     formationCount++;
   }
   spawnRow(formationRows.shift());
+  const endlessGap = Math.max(0, runTime - 180);
   formationDelay = formationRows.length
-    ? 0.55 - speedTier * 0.06
-    : 0.95 - speedTier * 0.1;
+    ? 0.55 - speedTier * 0.06 - Math.min(0.08, endlessGap / 1500)
+    : 0.95 - speedTier * 0.1 - Math.min(0.05, endlessGap / 2400);
 }
 
 function drawEntities() {
@@ -294,7 +321,7 @@ function draw() {
   drawBurst();
   drawPlayer();
   context.filter = "none";
-  if (state === 1) {
+  if (state === 1 || state > 2) {
     context.fillStyle = "white";
     context.textAlign = "left";
     context.font = "bold 24px sans-serif";
@@ -307,14 +334,19 @@ function draw() {
     context.fillRect(85, 52, worldColor * 1.5, 16);
     context.fillStyle = "white";
     context.fillText(burstTime ? "SPECTRAL BURST" : `COMBO ${combo}/8`, 24, 92);
+    context.textAlign = "right";
+    context.font = "bold 24px sans-serif";
+    context.fillText(runTime >= 180 ? "ENDLESS" : ["DAWN", "STORM", "BLOOM"][speedTier], 936, 38);
     if (DEBUG) {
-      context.textAlign = "right";
+      context.font = "bold 16px sans-serif";
       context.fillText(
         formationTest >= 0
           ? `BLOOM ${formationTest}/24`
-          : `TEST ${["DAWN", "STORM", "BLOOM"][speedTier]} · V`,
+          : `TEST ${testSpeed < 0 ? "AUTO" : ["DAWN", "STORM", "BLOOM"][testSpeed]} · ${
+              (speeds[speedTier] + Math.min(60, Math.max(0, runTime - 180) / 2)) | 0
+            } PX/S · V/T`,
         936,
-        38,
+        65,
       );
     }
     const lesson =
@@ -327,15 +359,30 @@ function draw() {
       context.textAlign = "center";
       context.fillText(lesson, width / 2, 70);
     }
+    if (actFlash) {
+      context.textAlign = "center";
+      context.font = "bold 42px sans-serif";
+      context.fillText(["DAWN", "STORM", "BLOOM"][speedTier], width / 2, 150);
+    }
   }
   if (state === 0) {
     drawMessage("TWO-TRICK UNICORN", "ENTER/CLICK · ← → MOVE · SPACE LEAP · X BLAST");
+    context.fillText(`BEST ${best}`, width / 2, 340);
   } else if (state === 2) {
-    drawMessage("THE GLOOM WON", `SCORE ${score()} · ENTER OR CLICK TO TRY AGAIN`);
+    drawMessage("THE GLOOM WON", `SCORE ${score()} · BEST ${best} · ENTER/CLICK TO TRY AGAIN`);
+  } else if (state === 3) {
+    drawMessage("RAINBOW RESTORED!", `SCORE ${score()} · ENTER OR CLICK FOR ENDLESS`);
+  } else if (state === 4) {
+    drawMessage("PAUSED", "ESC/ENTER/CLICK RESUME · Q TITLE");
   }
 }
 
 function start() {
+  if (state === 3 || state === 4) {
+    state = 1;
+    lastTime = performance.now();
+    return;
+  }
   if (state !== 1) {
     state = 1;
     lane = 1;
@@ -348,7 +395,10 @@ function start() {
     leapTime = 0;
     blastTime = 0;
     speedTier = 0;
-    if (DEBUG) formationTest = -1;
+    runTime = 0;
+    actFlash = 2;
+    restored = false;
+    if (DEBUG) formationTest = testSpeed = -1;
     worldColor = 70;
     protection = 0;
     combo = burstTime = 0;
@@ -359,6 +409,15 @@ function start() {
 
 addEventListener("keydown", (event) => {
   if (event.key === "Enter") start();
+  if (event.key === "Escape" && state) {
+    state = state === 1 ? 4 : state === 4 ? 1 : 0;
+    lastTime = performance.now();
+    event.preventDefault();
+  }
+  if (state === 4 && event.key.toLowerCase() === "q") {
+    saveBest();
+    state = 0;
+  }
   if (state === 1 && ["ArrowLeft", "a", "A"].includes(event.key)) {
     lane = Math.max(0, lane - 1);
     event.preventDefault();
@@ -376,10 +435,15 @@ addEventListener("keydown", (event) => {
     event.preventDefault();
   }
   if (DEBUG && state === 1 && event.key.toLowerCase() === "v" && !event.repeat) {
-    speedTier = (speedTier + 1) % 3;
+    testSpeed = (testSpeed + 2) % 4 - 1;
+  }
+  if (DEBUG && state === 1 && event.key.toLowerCase() === "t" && !event.repeat) {
+    testSpeed = -1;
+    runTime = runTime < 50 ? 50 : runTime < 110 ? 110 : runTime < 180 ? 180 : runTime + 60;
   }
   if (DEBUG && state === 1 && event.key.toLowerCase() === "b" && !event.repeat) {
     speedTier = 2;
+    testSpeed = 2;
     formationTest = 0;
     formationCount = 5;
     formationRows = [];
@@ -403,10 +467,19 @@ function update(time) {
   lastTime = time;
 
   if (state === 1) {
-    const speed = speeds[speedTier];
+    runTime += delta;
+    // Debug tiers override the authored 50 s and 110 s act boundaries locally.
+    const nextTier =
+      DEBUG && testSpeed >= 0 ? testSpeed : runTime < 50 ? 0 : runTime < 110 ? 1 : 2;
+    if (nextTier !== speedTier) {
+      speedTier = nextTier;
+      actFlash = 2;
+    }
+    const speed = speeds[speedTier] + Math.min(60, Math.max(0, runTime - 180) / 2);
     distance += delta * speed;
     if (burstTime) bonus += (delta * speed) / 10;
     protection = Math.max(0, protection - delta);
+    actFlash = Math.max(0, actFlash - delta);
     if (burstTime && !(burstTime = Math.max(0, burstTime - delta))) combo = 0;
     leapTime = Math.max(0, leapTime - delta);
     blastTime = Math.max(0, blastTime - delta);
@@ -446,12 +519,23 @@ function update(time) {
           worldColor -= 25;
           protection = 1;
           combo = 0;
-          if (worldColor <= 0) state = 2;
+          if (worldColor <= 0) {
+            state = 2;
+            saveBest();
+          }
         }
         return entity.type === bridge;
       }
       return entity.y < 580;
     });
+    if (!restored && runTime >= 180) {
+      restored = true;
+      state = 3;
+      saveBest();
+      entities = [];
+      formationRows = [];
+      formationDelay = 0.8;
+    }
   }
 
   draw();

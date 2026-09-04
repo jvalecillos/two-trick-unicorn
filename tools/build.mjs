@@ -74,7 +74,7 @@ function validate() {
   if (/https?:|(?:src|href)=["']\/\//i.test(html)) {
     throw Error("Packaged HTML contains an external resource reference");
   }
-  if (/TEST |\/24/.test(html)) throw Error("Packaged HTML contains debug UI");
+  if (/TEST |V\/T/.test(html)) throw Error("Packaged HTML contains debug UI");
   console.log("Validated top-level index.html and offline resources");
 }
 
