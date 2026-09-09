@@ -50,6 +50,13 @@ let burstTime = 0;
 let learned = 0;
 let entities = [];
 let best = 0;
+let audio;
+let effectTime = 0;
+let effectX = 0;
+let effectY = 0;
+let effectHit = false;
+let shakeTime = 0;
+let freezeTime = 0;
 
 try {
   best = +localStorage.TTU26 || 0;
@@ -57,6 +64,43 @@ try {
 
 function score() {
   return (distance / 10 + bonus) | 0;
+}
+
+function sound(
+  frequency,
+  duration = 0.1,
+  endFrequency = frequency,
+  type = "sine",
+  delay = 0,
+  volume = 0.08,
+) {
+  try {
+    audio ||= new AudioContext();
+    const oscillator = audio.createOscillator();
+    const gain = audio.createGain();
+    const start = audio.currentTime + delay;
+    audio.resume();
+    oscillator.type = type;
+    oscillator.frequency.setValueAtTime(frequency * (0.98 + Math.random() * 0.04), start);
+    oscillator.frequency.exponentialRampToValueAtTime(endFrequency, start + duration);
+    gain.gain.setValueAtTime(volume, start);
+    gain.gain.exponentialRampToValueAtTime(0.001, start + duration);
+    oscillator.connect(gain).connect(audio.destination);
+    oscillator.start(start);
+    oscillator.stop(start + duration);
+  } catch {}
+}
+
+function tune(notes) {
+  notes.forEach((note, index) => sound(note, 0.16, note, "square", index * 0.08, 0.06));
+}
+
+function particles(x, y, hit) {
+  // One reusable burst keeps the effect state bounded in endless play.
+  effectX = x;
+  effectY = y;
+  effectHit = hit;
+  effectTime = 0.35;
 }
 
 function saveBest() {
@@ -71,7 +115,13 @@ function saveBest() {
 function reward(points, colorGain) {
   bonus += points * (burstTime ? 2 : 1);
   worldColor = Math.min(100, worldColor + colorGain);
-  if (++combo === 8) burstTime = 4;
+  if (++combo === 8) {
+    burstTime = 4;
+    shakeTime = 0.35;
+    freezeTime = 0.12;
+    tune([440, 554, 659, 880]);
+    sound(440, 0.7, 880, "triangle");
+  }
 }
 
 function lanePosition(targetLane, y) {
@@ -140,6 +190,15 @@ function drawPlayer() {
   context.ellipse(playerX, 468, 39 - lift / 3, 11 - lift / 12, 0, 0, 7);
   context.fill();
 
+  // Positive values stretch a leap; negative values squash movement or impact.
+  const stretch =
+    lift / 400 -
+    Math.min(0.25, Math.abs(lanePosition(lane, 440) - playerX) / 350) -
+    (effectHit ? effectTime / 2 : 0);
+  context.save();
+  context.translate(playerX, 438 - lift);
+  context.scale(1 - stretch, 1 + stretch);
+  context.translate(-playerX, lift - 438);
   context.fillStyle = "#fff5fd";
   context.fillRect(playerX - 25, 412 - lift, 50, 52);
   context.fillStyle = "#ff77cc";
@@ -150,6 +209,7 @@ function drawPlayer() {
   context.lineTo(playerX + 9, 382 - lift);
   context.lineTo(playerX + 15, 416 - lift);
   context.fill();
+  context.restore();
   context.globalAlpha = 1;
 }
 
@@ -313,14 +373,46 @@ function drawMessage(title, subtitle) {
   context.fillText(subtitle, width / 2, 305);
 }
 
+function drawParticles() {
+  if (effectTime) {
+    const spread = (0.35 - effectTime) * 150;
+    context.globalAlpha = effectTime / 0.35;
+    for (let index = 0; index < 8; index++) {
+      context.fillStyle = effectHit ? "#f45" : ribbonColors[index % 3];
+      context.beginPath();
+      context.arc(
+        effectX + Math.cos(index * 2.4) * spread,
+        effectY + Math.sin(index * 2.4) * spread,
+        effectHit ? 7 : 5,
+        0,
+        7,
+      );
+      context.fill();
+    }
+    context.globalAlpha = 1;
+  }
+}
+
 function draw() {
+  context.save();
+  if (shakeTime) {
+    context.translate(
+      Math.sin(shakeTime * 90) * shakeTime * 28,
+      Math.cos(shakeTime * 70) * shakeTime * 16,
+    );
+  }
   context.filter = `saturate(${worldColor}%)`;
   drawRoad();
   drawEntities();
   drawBlast();
+  // Feedback stays vivid even when low health desaturates the world.
+  context.filter = "none";
   drawBurst();
+  context.filter = `saturate(${worldColor}%)`;
   drawPlayer();
   context.filter = "none";
+  drawParticles();
+  context.restore();
   if (state === 1 || state > 2) {
     context.fillStyle = "white";
     context.textAlign = "left";
@@ -379,8 +471,10 @@ function draw() {
 
 function start() {
   if (state === 3 || state === 4) {
+    const paused = state === 4;
     state = 1;
     lastTime = performance.now();
+    if (paused) sound(440, 0.08, 660, "square");
     return;
   }
   if (state !== 1) {
@@ -402,7 +496,9 @@ function start() {
     worldColor = 70;
     protection = 0;
     combo = burstTime = 0;
+    effectTime = shakeTime = freezeTime = 0;
     entities = [];
+    tune([262, 330, 392]);
     draw();
   }
 }
@@ -410,13 +506,18 @@ function start() {
 addEventListener("keydown", (event) => {
   if (event.key === "Enter") start();
   if (event.key === "Escape" && state) {
+    const previousState = state;
     state = state === 1 ? 4 : state === 4 ? 1 : 0;
     lastTime = performance.now();
+    if (previousState === 1) sound(330, 0.08, 220, "square");
+    else if (previousState === 4) sound(440, 0.08, 660, "square");
+    else tune([392, 330, 262]);
     event.preventDefault();
   }
   if (state === 4 && event.key.toLowerCase() === "q") {
     saveBest();
     state = 0;
+    tune([392, 330, 262]);
   }
   if (state === 1 && ["ArrowLeft", "a", "A"].includes(event.key)) {
     lane = Math.max(0, lane - 1);
@@ -427,11 +528,17 @@ addEventListener("keydown", (event) => {
     event.preventDefault();
   }
   if (state === 1 && event.code === "Space") {
-    if (leapTime <= 0 && !event.repeat) leapTime = 0.7;
+    if (leapTime <= 0 && !event.repeat) {
+      leapTime = 0.7;
+      sound(330, 0.18, 660, "triangle");
+    }
     event.preventDefault();
   }
   if (state === 1 && event.key.toLowerCase() === "x") {
-    if (blastTime <= 0 && !event.repeat) blastTime = 0.6;
+    if (blastTime <= 0 && !event.repeat) {
+      blastTime = 0.6;
+      sound(1200, 0.12, 300, "sawtooth");
+    }
     event.preventDefault();
   }
   if (DEBUG && state === 1 && event.key.toLowerCase() === "v" && !event.repeat) {
@@ -452,6 +559,7 @@ addEventListener("keydown", (event) => {
     worldColor = 70;
     protection = 0;
     combo = burstTime = 0;
+    effectTime = shakeTime = freezeTime = 0;
     lane = 1;
     playerX = 480;
     entities = [];
@@ -463,10 +571,15 @@ document.addEventListener("visibilitychange", () => {
 });
 
 function update(time) {
-  const delta = Math.min((time - lastTime) / 1000 || 0, 0.05);
+  let delta = Math.min((time - lastTime) / 1000 || 0, 0.05);
   lastTime = time;
 
   if (state === 1) {
+    // Keep drawing and accepting input while simulation timers hold.
+    if (freezeTime) {
+      freezeTime = Math.max(0, freezeTime - delta);
+      delta = 0;
+    }
     runTime += delta;
     // Debug tiers override the authored 50 s and 110 s act boundaries locally.
     const nextTier =
@@ -474,12 +587,15 @@ function update(time) {
     if (nextTier !== speedTier) {
       speedTier = nextTier;
       actFlash = 2;
+      tune(speedTier === 1 ? [392, 523] : [523, 659, 784]);
     }
     const speed = speeds[speedTier] + Math.min(60, Math.max(0, runTime - 180) / 2);
     distance += delta * speed;
     if (burstTime) bonus += (delta * speed) / 10;
     protection = Math.max(0, protection - delta);
     actFlash = Math.max(0, actFlash - delta);
+    effectTime = Math.max(0, effectTime - delta);
+    shakeTime = Math.max(0, shakeTime - delta);
     if (burstTime && !(burstTime = Math.max(0, burstTime - delta))) combo = 0;
     leapTime = Math.max(0, leapTime - delta);
     blastTime = Math.max(0, blastTime - delta);
@@ -509,6 +625,8 @@ function update(time) {
       ) {
         if (entity.type === star) {
           reward(100, 5);
+          particles(entity.x, entity.y, false);
+          sound(900, 0.14, 1500);
         }
         else if (entity.type === rift && leapTime > 0.25) {
           entity.type = bridge;
@@ -519,8 +637,13 @@ function update(time) {
           worldColor -= 25;
           protection = 1;
           combo = 0;
+          particles(playerX, 430, true);
+          shakeTime = 0.2;
+          freezeTime = 0.05;
+          sound(160, worldColor <= 0 ? 0.8 : 0.3, 40, "square", 0, 0.13);
           if (worldColor <= 0) {
             state = 2;
+            sound(100, 1, 30, "sawtooth", 0.15, 0.1);
             saveBest();
           }
         }
@@ -531,6 +654,9 @@ function update(time) {
     if (!restored && runTime >= 180) {
       restored = true;
       state = 3;
+      sound(523, 0.8, 784, "triangle");
+      sound(659, 0.8, 988, "triangle", 0.15);
+      sound(784, 1.2, 1175, "triangle", 0.3);
       saveBest();
       entities = [];
       formationRows = [];
