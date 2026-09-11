@@ -199,16 +199,82 @@ function drawPlayer() {
   context.translate(playerX, 438 - lift);
   context.scale(1 - stretch, 1 + stretch);
   context.translate(-playerX, lift - 438);
-  context.fillStyle = "#fff5fd";
-  context.fillRect(playerX - 25, 412 - lift, 50, 52);
-  context.fillStyle = "#ff77cc";
-  context.fillRect(playerX - 25, 412 - lift, 12, 52);
+
+  const step = Math.sin(distance / 12) * 5;
+  const ink = "#4b2945";
+  context.lineWidth = 2;
+  context.lineCap = "round";
+  context.lineJoin = "round";
+  context.strokeStyle = ink;
+
   context.fillStyle = "#ffd84d";
   context.beginPath();
-  context.moveTo(playerX, 412 - lift);
-  context.lineTo(playerX + 9, 382 - lift);
-  context.lineTo(playerX + 15, 416 - lift);
+  context.moveTo(playerX - 6, 395 - lift);
+  context.lineTo(playerX, 365 - lift);
+  context.lineTo(playerX + 6, 395 - lift);
+  context.closePath();
   context.fill();
+  context.stroke();
+
+  context.fillStyle = "#fff5fd";
+  context.beginPath();
+  context.ellipse(playerX - 15, 398 - lift, 5, 11, -0.4, 0, 7);
+  context.ellipse(playerX + 15, 398 - lift, 5, 11, 0.4, 0, 7);
+  context.fill();
+  context.stroke();
+
+  context.beginPath();
+  context.arc(playerX, 407 - lift, 19, 0, 7);
+  context.fill();
+  context.stroke();
+
+  const maneY = [388, 398, 410];
+  const maneR = [8, 10, 11];
+  for (let index = 0; index < 3; index++) {
+    context.fillStyle = ribbonColors[index];
+    context.beginPath();
+    context.arc(playerX, maneY[index] - lift, maneR[index], 0, 7);
+    context.fill();
+    context.stroke();
+  }
+
+  // The rump covers the leg tops and lower head to establish rear-view depth.
+  context.fillStyle = "#fff5fd";
+  context.fillRect(playerX - 20, 452 - lift, 10, 22 + step);
+  context.fillRect(playerX + 10, 452 - lift, 10, 22 - step);
+  context.strokeRect(playerX - 20, 452 - lift, 10, 22 + step);
+  context.strokeRect(playerX + 10, 452 - lift, 10, 22 - step);
+
+  context.fillStyle = "#45414d";
+  context.fillRect(playerX - 20, 469 - lift + step, 10, 5);
+  context.fillRect(playerX + 10, 469 - lift - step, 10, 5);
+
+  context.fillStyle = "#fff5fd";
+  context.beginPath();
+  context.ellipse(playerX, 440 - lift, 27, 29, 0, 0, 7);
+  context.fill();
+  context.stroke();
+
+  const rootY = 434 - lift;
+  // Outline every strand first, then overlay color from one narrow tail root.
+  for (let pass = 0; pass < 2; pass++) {
+    context.lineWidth = pass ? 7 : 11;
+    for (let index = 0; index < 3; index++) {
+      const offset = (index - 1) * 5;
+      context.strokeStyle = pass ? ribbonColors[index] : ink;
+      context.beginPath();
+      context.moveTo(playerX + (index - 1) * 2, rootY);
+      context.bezierCurveTo(
+        playerX - 12 + offset,
+        rootY + 14,
+        playerX + 18 + offset,
+        rootY + 28,
+        playerX - 5 + offset,
+        rootY + 44,
+      );
+      context.stroke();
+    }
+  }
   context.restore();
   context.globalAlpha = 1;
 }
@@ -246,7 +312,7 @@ function drawBlast() {
     context.strokeStyle = "#fff";
     context.lineWidth = 8;
     context.beginPath();
-    context.moveTo(playerX + 9, 382 - lift);
+    context.moveTo(playerX, 365 - lift);
     context.lineTo(blastPosition(260), 260);
     context.stroke();
     context.strokeStyle = "#7ff";
@@ -299,64 +365,72 @@ function scheduleFormation() {
 
 function drawEntities() {
   for (const entity of entities) {
+    const x = entity.x;
+    const y = entity.y;
+    const size = entity.size;
     if (entity.type === star) {
+      context.save();
+      context.translate(x, y);
+      context.rotate(distance / 80);
       context.fillStyle = "#fff6a8";
       context.beginPath();
-      context.moveTo(entity.x, entity.y - entity.size);
-      context.lineTo(entity.x + entity.size * 0.65, entity.y);
-      context.lineTo(entity.x, entity.y + entity.size);
-      context.lineTo(entity.x - entity.size * 0.65, entity.y);
+      context.moveTo(0, -size);
+      context.quadraticCurveTo(0, 0, size, 0);
+      context.quadraticCurveTo(0, 0, 0, size);
+      context.quadraticCurveTo(0, 0, -size, 0);
+      context.quadraticCurveTo(0, 0, 0, -size);
       context.fill();
+      context.fillStyle = "#fff";
+      context.beginPath();
+      context.arc(0, 0, size * 0.25, 0, 7);
+      context.fill();
+      context.restore();
     } else if (entity.type === cloud) {
       context.fillStyle = "#24163266";
       context.beginPath();
-      context.ellipse(
-        entity.x,
-        entity.y + entity.size * 1.2,
-        entity.size * 1.5,
-        entity.size * 0.3,
-        0,
-        0,
-        7,
-      );
+      context.ellipse(x, y + size * 1.2, size * 1.5, size * 0.3, 0, 0, 7);
       context.fill();
       context.fillStyle = "#292033";
       context.beginPath();
-      context.arc(entity.x, entity.y, entity.size, 0, 7);
-      context.arc(
-        entity.x + entity.size,
-        entity.y + entity.size * 0.15,
-        entity.size * 0.75,
-        0,
-        7,
-      );
-      context.arc(
-        entity.x - entity.size,
-        entity.y + entity.size * 0.15,
-        entity.size * 0.75,
-        0,
-        7,
-      );
+      context.arc(x, y, size, 0, 7);
+      context.arc(x + size, y + size * 0.15, size * 0.75, 0, 7);
+      context.arc(x - size, y + size * 0.15, size * 0.75, 0, 7);
       context.fill();
-    } else if (entity.type === rift) {
-      context.fillStyle = "#160f20";
+      context.fillStyle = "#ff8bd5";
       context.beginPath();
-      context.moveTo(entity.x - entity.size * 1.5, entity.y);
-      context.lineTo(entity.x - entity.size * 0.5, entity.y - entity.size * 0.5);
-      context.lineTo(entity.x, entity.y + entity.size * 0.2);
-      context.lineTo(entity.x + entity.size * 0.6, entity.y - entity.size * 0.4);
-      context.lineTo(entity.x + entity.size * 1.5, entity.y);
-      context.lineTo(entity.x, entity.y + entity.size * 0.7);
+      context.arc(x - size * 0.35, y, size * 0.12, 0, 7);
+      context.arc(x + size * 0.35, y, size * 0.12, 0, 7);
       context.fill();
     } else {
-      for (let index = 0; index < 3; index++) {
-        context.fillStyle = ribbonColors[index];
-        context.fillRect(
-          entity.x - entity.size * 1.5,
-          entity.y + entity.size * (index / 6 - 0.25),
-          entity.size * 3,
-          entity.size / 6,
-        );
+      // A bridge covers the same outlined chasm used by its rift state.
+      context.fillStyle = "#160f20";
+      context.strokeStyle = "#a98bff";
+      context.lineWidth = size / 6;
+      context.beginPath();
+      context.moveTo(x - size * 1.8, y - size * 0.1);
+      context.lineTo(x - size * 0.8, y - size * 0.35);
+      context.lineTo(x, y - size * 0.15);
+      context.lineTo(x + size * 0.7, y - size * 0.4);
+      context.lineTo(x + size * 1.8, y - size * 0.05);
+      context.lineTo(x + size * 1.2, y + size * 0.25);
+      context.lineTo(x + size * 0.4, y + size * 0.45);
+      context.lineTo(x - size * 0.5, y + size * 0.3);
+      context.lineTo(x - size * 1.3, y + size * 0.4);
+      context.closePath();
+      context.fill();
+      context.stroke();
+      if (entity.type === bridge) {
+        context.fillStyle = "#fff";
+        context.fillRect(x - size * 1.6, y - size * 0.25, size * 3.2, size * 0.55);
+        for (let index = 0; index < 3; index++) {
+          context.fillStyle = ribbonColors[index];
+          context.fillRect(
+            x - size * 1.5,
+            y + size * (index * 0.15 - 0.21),
+            size * 3,
+            size * 0.13,
+          );
+        }
       }
     }
   }
