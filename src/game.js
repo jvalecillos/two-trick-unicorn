@@ -146,8 +146,12 @@ function blastPosition(y) {
 }
 
 function drawRoad() {
-  context.fillStyle = "#20152f";
+  context.fillStyle = ["#20152f", "#101827", "#382044"][speedTier];
   context.fillRect(0, 0, width, height);
+  context.fillStyle = ["#f8b4", "#8cf5", "#ffd8"][speedTier];
+  context.beginPath();
+  context.arc(480, 100, [65, 55, 100][speedTier], Math.PI, 0);
+  context.fill();
 
   for (let index = 0; index < 3; index++) {
     const topLeft = 400 + (index * 160) / 3;
@@ -178,6 +182,18 @@ function drawRoad() {
     context.moveTo(400 + (index * 160) / 3, 100);
     context.lineTo(100 + (index * 760) / 3, height);
     context.stroke();
+  }
+
+  // Storm repurposes the sparse sky sparkles as rain over the whole scene.
+  context.fillStyle = speedTier === 1 ? "#9df8" : "#fff8";
+  for (let index = 0; index < (speedTier === 1 ? 18 : 9); index++) {
+    const depth = speedTier === 1 ? ((index * 47 + distance) % 500) / 500 : 0;
+    context.fillRect(
+      (index * 137) % width,
+      speedTier === 1 ? depth * depth * height : 20 + ((index * 47) % 70),
+      speedTier === 1 ? 1 + depth * 2 : 2,
+      speedTier === 1 ? 4 + depth * 20 : 2,
+    );
   }
 }
 
@@ -282,9 +298,17 @@ function drawPlayer() {
 function drawBurst() {
   if (burstTime) {
     context.globalAlpha = 0.7;
-    for (let index = 0; index < 3; index++) {
-      context.fillStyle = ribbonColors[index];
-      context.fillRect(playerX - 30 + index * 20, 450, 20, 90);
+    // The first wide path outlines six animated bands against every lane.
+    for (let band = -1; band < 6; band++) {
+      context.strokeStyle = band < 0 ? "#4b2945" : `hsl(${band * 60} 90% 60%)`;
+      context.lineWidth = band < 0 ? 54 : 8;
+      context.beginPath();
+      for (let y = 450; y < 550; y += 10) {
+        const x =
+          playerX + (band < 0 ? 0 : band * 8 - 20) + Math.sin(distance / 25 + y / 18) * 4;
+        y === 450 ? context.moveTo(x, y) : context.lineTo(x, y);
+      }
+      context.stroke();
     }
     for (let index = 0; index < 7; index++) {
       context.fillStyle = ribbonColors[index % 3];
@@ -468,6 +492,7 @@ function drawParticles() {
 }
 
 function draw() {
+  const saturation = Math.max(0, worldColor);
   context.save();
   if (shakeTime) {
     context.translate(
@@ -475,14 +500,14 @@ function draw() {
       Math.cos(shakeTime * 70) * shakeTime * 16,
     );
   }
-  context.filter = `saturate(${worldColor}%)`;
+  context.filter = `saturate(${saturation}%)`;
   drawRoad();
   drawEntities();
   drawBlast();
   // Feedback stays vivid even when low health desaturates the world.
   context.filter = "none";
   drawBurst();
-  context.filter = `saturate(${worldColor}%)`;
+  context.filter = `saturate(${saturation}%)`;
   drawPlayer();
   context.filter = "none";
   drawParticles();
@@ -535,7 +560,8 @@ function draw() {
     drawMessage("TWO-TRICK UNICORN", "ENTER/CLICK · ← → MOVE · SPACE LEAP · X BLAST");
     context.fillText(`BEST ${best}`, width / 2, 340);
   } else if (state === 2) {
-    drawMessage("THE GLOOM WON", `SCORE ${score()} · BEST ${best} · ENTER/CLICK TO TRY AGAIN`);
+    drawMessage("THE GLOOM WON", `SCORE ${score()} · BEST ${best}`);
+    context.fillText("ENTER/CLICK TO TRY AGAIN", width / 2, 340);
   } else if (state === 3) {
     drawMessage("RAINBOW RESTORED!", `SCORE ${score()} · ENTER OR CLICK FOR ENDLESS`);
   } else if (state === 4) {
@@ -717,6 +743,7 @@ function update(time) {
           sound(160, worldColor <= 0 ? 0.8 : 0.3, 40, "square", 0, 0.13);
           if (worldColor <= 0) {
             state = 2;
+            effectTime = shakeTime = freezeTime = 0;
             sound(100, 1, 30, "sawtooth", 0.15, 0.1);
             saveBest();
           }
