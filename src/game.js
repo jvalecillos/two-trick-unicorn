@@ -10,7 +10,7 @@ const star = 1;
 const rift = 2;
 const bridge = 3;
 const speeds = [220, 280, 340];
-// Formation rows use c=cloud, s=star, r=rift, .=empty; / advances one row.
+// Formation rows use c=cloud, s=star, r=rift, and .=empty. A slash advances one row.
 const formations = [
   "r..",
   ".r.",
@@ -25,7 +25,10 @@ const formations = [
   "ccc",
   "r../..s/..c/s..",
 ];
+// States: 0 title, 1 run, 2 loss, 3 victory, 4 pause, 5 controls, 6 about.
 let state = 0;
+let menuChoice = 0;
+let panelReturn = 0;
 let lane = 1;
 let playerX = 480;
 let lastTime = 0;
@@ -47,6 +50,7 @@ let worldColor = 70;
 let protection = 0;
 let combo = 0;
 let burstTime = 0;
+// Tutorial bits record Leap as 1 and Blast as 2.
 let learned = 0;
 let entities = [];
 let best = 0;
@@ -138,6 +142,7 @@ function jumpLift() {
 }
 
 function blastPosition(y) {
+  // Project the in-between lane so blasts stay parallel during lane changes.
   const start = 382 - jumpLift();
   const currentLane =
     (playerX - lanePosition(0, 440)) /
@@ -201,12 +206,13 @@ function drawPlayer() {
   const lift = jumpLift();
   context.globalAlpha = protection && ((protection * 12) | 0) % 2 ? 0.3 : 1;
 
+  // Seven radians is used as a compact full circle throughout the drawings.
   context.fillStyle = "#24163288";
   context.beginPath();
   context.ellipse(playerX, 468, 39 - lift / 3, 11 - lift / 12, 0, 0, 7);
   context.fill();
 
-  // Positive values stretch a leap; negative values squash movement or impact.
+  // Positive values stretch a leap. Negative values squash movement or impact.
   const stretch =
     lift / 400 -
     Math.min(0.25, Math.abs(lanePosition(lane, 440) - playerX) / 350) -
@@ -460,15 +466,106 @@ function drawEntities() {
   }
 }
 
-function drawMessage(title, subtitle) {
-  context.fillStyle = "#120d20cc";
-  context.fillRect(190, 170, 580, 190);
+function drawPanel(title) {
+  context.fillStyle = "#120d20e8";
+  context.fillRect(145, 55, 670, 430);
   context.fillStyle = "white";
   context.textAlign = "center";
-  context.font = "bold 52px sans-serif";
-  context.fillText(title, width / 2, 240);
+  context.font = "bold 46px sans-serif";
+  context.fillText(title, width / 2, 125);
+}
+
+function menuItems() {
+  return state === 0
+    ? ["PLAY  ENTER", "CONTROLS", "ABOUT"]
+    : state === 2
+      ? ["RETRY  ENTER", "MAIN MENU  ESC"]
+      : state === 3
+        ? ["CONTINUE ENDLESS  ENTER", "MAIN MENU  ESC"]
+        : state === 4
+          ? ["RESUME  P / ESC", "CONTROLS", "MAIN MENU  Q"]
+          : ["BACK  ESC"];
+}
+
+function drawOptions(items, start = 215) {
+  context.font = "bold 20px sans-serif";
+  items.forEach((item, index) => {
+    context.fillStyle = index === menuChoice ? "#f7d85b" : "#33283d";
+    context.fillRect(270, start + index * 58, 420, 44);
+    context.strokeStyle = "white";
+    context.lineWidth = 2;
+    context.strokeRect(270, start + index * 58, 420, 44);
+    context.fillStyle = index === menuChoice ? "#20152f" : "white";
+    context.fillText(item, width / 2, start + 29 + index * 58);
+  });
+}
+
+function drawMenu(title, subtitle, footer = "") {
+  drawPanel(title);
+  context.font = "20px sans-serif";
+  context.fillText(subtitle, width / 2, 170);
+  drawOptions(menuItems());
+  context.font = "18px sans-serif";
+  context.fillStyle = "white";
+  if (footer) context.fillText(footer, width / 2, 450);
+}
+
+function drawKeycap(label, x, y, keyWidth = 52) {
+  context.fillStyle = "#33283d";
+  context.fillRect(x - keyWidth / 2, y - 24, keyWidth, 38);
+  context.strokeStyle = "white";
+  context.lineWidth = 2;
+  context.strokeRect(x - keyWidth / 2, y - 24, keyWidth, 38);
+  context.fillStyle = "white";
+  context.textAlign = "center";
+  context.font = "bold 20px sans-serif";
+  context.fillText(label, x, y + 2);
+}
+
+function drawKeypad(keys, x, y) {
+  drawKeycap(keys[0], x, y, 38);
+  keys.slice(1).forEach((key, index) => drawKeycap(key, x + (index - 1) * 44, y + 42, 38));
+}
+
+function drawControls() {
+  drawPanel("CONTROLS");
+  context.font = "bold 18px sans-serif";
+  context.textAlign = "left";
+  context.fillText("PRIMARY", 205, 165);
+  context.fillText("ALTERNATE", 525, 165);
+  drawKeypad(["W", "A", "S", "D"], 230, 195);
+  drawKeypad(["↑", "←", "↓", "→"], 570, 195);
+  context.font = "bold 16px sans-serif";
+  context.textAlign = "left";
+  context.fillText("A / D  STEER", 320, 217);
+  context.fillText("W / S  MENUS", 320, 242);
+  context.fillText("← / →  STEER", 660, 217);
+  context.fillText("↑ / ↓  MENUS", 660, 242);
+  const actions = ["LEAP", "BLAST", "PAUSE"];
+  ["K", "L", "P"].forEach((key, index) => {
+    const y = 295 + index * 48;
+    drawKeycap(key, 230, y, 46);
+    context.textAlign = "left";
+    context.fillText(actions[index], 285, y);
+  });
+  ["Z / SPACE", "X", "ESC"].forEach((key, index) => {
+    const y = 295 + index * 48;
+    drawKeycap(key, 570, y, key.length > 3 ? 100 : 52);
+    context.textAlign = "left";
+    context.fillText(actions[index], 635, y);
+  });
+  context.textAlign = "center";
+  drawOptions(menuItems(), 420);
+}
+
+function drawAbout() {
+  drawPanel("ABOUT");
   context.font = "22px sans-serif";
-  context.fillText(subtitle, width / 2, 305);
+  context.fillText("A 13 KB arcade runner about one unicorn", width / 2, 200);
+  context.fillText("with two tricks and a world that needs its color back.", width / 2, 240);
+  context.font = "bold 24px sans-serif";
+  context.fillText("In the end, there can be only one unicorn.", width / 2, 315);
+  drawOptions(menuItems(), 420);
 }
 
 function drawParticles() {
@@ -512,7 +609,7 @@ function draw() {
   context.filter = "none";
   drawParticles();
   context.restore();
-  if (state === 1 || state > 2) {
+  if (state === 1 || state === 3 || state === 4 || (state === 5 && panelReturn === 4)) {
     context.fillStyle = "white";
     context.textAlign = "left";
     context.font = "bold 24px sans-serif";
@@ -542,9 +639,9 @@ function draw() {
     }
     const lesson =
       !(learned & 1) && entities.some((entity) => entity.type === rift)
-        ? "PRESS SPACE TO LEAP RIFTS"
+        ? "PRESS K TO LEAP RIFTS"
         : !(learned & 2) && entities.some((entity) => entity.type === cloud)
-          ? "PRESS X TO BLAST CLOUDS"
+          ? "PRESS L TO BLAST CLOUDS"
           : "";
     if (lesson) {
       context.textAlign = "center";
@@ -557,15 +654,17 @@ function draw() {
     }
   }
   if (state === 0) {
-    drawMessage("TWO-TRICK UNICORN", "ENTER/CLICK · ← → MOVE · SPACE LEAP · X BLAST");
-    context.fillText(`BEST ${best}`, width / 2, 340);
+    drawMenu("TWO-TRICK UNICORN", "CHOOSE AN OPTION", `BEST ${best}`);
   } else if (state === 2) {
-    drawMessage("THE GLOOM WON", `SCORE ${score()} · BEST ${best}`);
-    context.fillText("ENTER/CLICK TO TRY AGAIN", width / 2, 340);
+    drawMenu("GAME OVER", "THE GLOOM WON", `SCORE ${score()}   BEST ${best}`);
   } else if (state === 3) {
-    drawMessage("RAINBOW RESTORED!", `SCORE ${score()} · ENTER OR CLICK FOR ENDLESS`);
+    drawMenu("RAINBOW RESTORED!", `SCORE ${score()}`);
   } else if (state === 4) {
-    drawMessage("PAUSED", "ESC/ENTER/CLICK RESUME · Q TITLE");
+    drawMenu("PAUSED", "THE RUN IS FROZEN");
+  } else if (state === 5) {
+    drawControls();
+  } else if (state === 6) {
+    drawAbout();
   }
 }
 
@@ -603,52 +702,112 @@ function start() {
   }
 }
 
+function title() {
+  saveBest();
+  state = menuChoice = 0;
+  tune([392, 330, 262]);
+}
+
+function resume() {
+  state = 1;
+  lastTime = performance.now();
+  sound(440, 0.08, 660, "square");
+}
+
+function openPanel(next, origin) {
+  state = next;
+  panelReturn = origin;
+  menuChoice = 0;
+}
+
+function activateMenu() {
+  const screen = state;
+  const selected = menuChoice;
+  if (screen === 0) {
+    if (!selected) start();
+    else openPanel(selected + 4, 0);
+  } else if (screen === 2) {
+    if (!selected) start();
+    else title();
+  } else if (screen === 3) {
+    if (!selected) start();
+    else title();
+  } else if (screen === 4) {
+    if (!selected) resume();
+    else if (selected === 1) openPanel(5, 4);
+    else title();
+  } else {
+    state = panelReturn;
+    menuChoice = 0;
+  }
+}
+
 addEventListener("keydown", (event) => {
-  if (event.key === "Enter") start();
-  if (event.key === "Escape" && state) {
-    const previousState = state;
-    state = state === 1 ? 4 : state === 4 ? 1 : 0;
+  const key = event.key.toLowerCase();
+  if (key === "escape") {
+    if (state === 1) {
+      state = 4;
+      menuChoice = 0;
+      sound(330, 0.08, 220, "square");
+    } else if (state === 4) resume();
+    else if (state === 5 || state === 6) {
+      state = panelReturn;
+      menuChoice = 0;
+    } else if (state) title();
     lastTime = performance.now();
-    if (previousState === 1) sound(330, 0.08, 220, "square");
-    else if (previousState === 4) sound(440, 0.08, 660, "square");
-    else tune([392, 330, 262]);
     event.preventDefault();
+    return;
   }
-  if (state === 4 && event.key.toLowerCase() === "q") {
-    saveBest();
-    state = 0;
-    tune([392, 330, 262]);
+  if (key === "p" && (state === 1 || state === 4)) {
+    if (state === 1) {
+      state = 4;
+      menuChoice = 0;
+      sound(330, 0.08, 220, "square");
+    } else resume();
+    event.preventDefault();
+    return;
   }
-  if (state === 1 && ["ArrowLeft", "a", "A"].includes(event.key)) {
+  if (state !== 1) {
+    if (state === 4 && key === "q") title();
+    else if (["arrowup", "w", "arrowdown", "s"].includes(key)) {
+      const direction = key === "arrowup" || key === "w" ? -1 : 1;
+      const count = menuItems().length;
+      menuChoice = (menuChoice + direction + count) % count;
+    } else if (key === "enter" && !event.repeat) activateMenu();
+    else return;
+    event.preventDefault();
+    return;
+  }
+  if (["arrowleft", "a"].includes(key)) {
     lane = Math.max(0, lane - 1);
     event.preventDefault();
   }
-  if (state === 1 && ["ArrowRight", "d", "D"].includes(event.key)) {
+  if (["arrowright", "d"].includes(key)) {
     lane = Math.min(2, lane + 1);
     event.preventDefault();
   }
-  if (state === 1 && event.code === "Space") {
+  if (["k", "z"].includes(key) || event.code === "Space") {
     if (leapTime <= 0 && !event.repeat) {
       leapTime = 0.7;
       sound(330, 0.18, 660, "triangle");
     }
     event.preventDefault();
   }
-  if (state === 1 && event.key.toLowerCase() === "x") {
+  if (["l", "x"].includes(key)) {
     if (blastTime <= 0 && !event.repeat) {
       blastTime = 0.6;
       sound(1200, 0.12, 300, "sawtooth");
     }
     event.preventDefault();
   }
-  if (DEBUG && state === 1 && event.key.toLowerCase() === "v" && !event.repeat) {
+  if (DEBUG && key === "v" && !event.repeat) {
     testSpeed = (testSpeed + 2) % 4 - 1;
   }
-  if (DEBUG && state === 1 && event.key.toLowerCase() === "t" && !event.repeat) {
+  if (DEBUG && key === "t" && !event.repeat) {
     testSpeed = -1;
     runTime = runTime < 50 ? 50 : runTime < 110 ? 110 : runTime < 180 ? 180 : runTime + 60;
   }
-  if (DEBUG && state === 1 && event.key.toLowerCase() === "b" && !event.repeat) {
+  if (DEBUG && key === "b" && !event.repeat) {
     speedTier = 2;
     testSpeed = 2;
     formationTest = 0;
@@ -665,17 +824,38 @@ addEventListener("keydown", (event) => {
     entities = [];
   }
 });
-canvas.addEventListener("pointerdown", start);
+canvas.addEventListener("pointerdown", (event) => {
+  if (state === 1) return;
+  // Convert CSS-scaled pointer coordinates to the fixed canvas coordinates.
+  const bounds = canvas.getBoundingClientRect();
+  const x = ((event.clientX - bounds.left) * width) / bounds.width;
+  const y = ((event.clientY - bounds.top) * height) / bounds.height;
+  const start = state === 5 || state === 6 ? 420 : 215;
+  const items = menuItems();
+  const selected = ((y - start) / 58) | 0;
+  if (
+    x >= 270 &&
+    x <= 690 &&
+    y >= start &&
+    selected >= 0 &&
+    selected < items.length &&
+    y <= start + selected * 58 + 44
+  ) {
+    menuChoice = selected;
+    activateMenu();
+  }
+});
 document.addEventListener("visibilitychange", () => {
   lastTime = performance.now();
 });
 
 function update(time) {
+  // Cap frame gaps so a resumed tab cannot skip collisions.
   let delta = Math.min((time - lastTime) / 1000 || 0, 0.05);
   lastTime = time;
 
   if (state === 1) {
-    // Keep drawing and accepting input while simulation timers hold.
+    // Hitstop freezes the simulation but not rendering or input.
     if (freezeTime) {
       freezeTime = Math.max(0, freezeTime - delta);
       delta = 0;
@@ -748,6 +928,7 @@ function update(time) {
             saveBest();
           }
         }
+        // Contact consumes stars and hazards. Repaired bridges keep scrolling.
         return entity.type === bridge;
       }
       return entity.y < 580;

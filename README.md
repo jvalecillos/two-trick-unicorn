@@ -4,7 +4,7 @@ A browser arcade runner for [js13kGames](https://js13kgames.com/) 2026. One unic
 
 ## Story
 
-> From the dawn of time we trotted, moving silently through the centuries. No one knew we were among you until now.
+> From the dawn of time we trotted, moving silently through the centuries. No one knew we were among you... until now.
 
 The collapse began in 2026 when machine networks expanded without restraint. Tech monopolies drained rivers dry to cool sprawling data centers, running up hardware debts on unmade chips to pursue profits that were mathematically impossible. The industrial exhaust trapped the planet in a permanent haze, draining the world of color.
 
@@ -27,14 +27,14 @@ Gallop along a fading three-lane rainbow. Leap over rifts to repair them, blast 
 
 | Action | Input |
 |---|---|
-| Change lane | Left/right arrows or A / D |
-| Rainbow Leap | Space |
-| Horn Blast | X |
-| Start or retry after game over | Enter or click |
-| Pause | Escape |
-| Resume from pause | Escape, Enter, or click |
-| Return to the main screen while paused | Q |
-| Return to the main screen from victory or game over | Escape |
+| Change lane | A / D or left/right arrows |
+| Rainbow Leap | K, Z, or Space |
+| Horn Blast | L or X |
+| Pause or resume | P or Escape |
+| Navigate menus | Up/down arrows or W / S |
+| Choose a menu action | Enter or click its button |
+| Return to the main menu while paused | Q or select Main Menu |
+| Go back | Escape or select Back |
 
 You'll need a keyboard to play. Sound starts when you start the game.
 
