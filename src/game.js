@@ -60,6 +60,8 @@ let learned = 0;
 let entities = [];
 let best = 0;
 let audio;
+let musicTimer;
+let musicStep = 0;
 let effectTime = 0;
 let effectX = 0;
 let effectY = 0;
@@ -81,7 +83,7 @@ function sound(
   endFrequency = frequency,
   type = "sine",
   delay = 0,
-  volume = 0.08,
+  volume = 0.1,
 ) {
   try {
     audio ||= new AudioContext();
@@ -101,7 +103,34 @@ function sound(
 }
 
 function tune(notes) {
-  notes.forEach((note, index) => sound(note, 0.16, note, "square", index * 0.08, 0.06));
+  notes.forEach((note, index) => sound(note, 0.16, note, "square", index * 0.08, 0.075));
+}
+
+function musicStart() {
+  if (musicTimer || !audio) return;
+  const notes = [
+    [262, 330, 392, 523, 392, 330, 294, 330],
+    [294, 370, 440, 587, 440, 370, 330, 370],
+    [330, 415, 494, 659, 494, 415, 370, 415],
+  ];
+  const play = () => {
+    // Keep the clock alive across menus, but make no notes outside active play.
+    if (state === 1) {
+      const oscillator = audio.createOscillator();
+      const gain = audio.createGain();
+      oscillator.type = "triangle";
+      // Act roots rise, while Burst briefly doubles tempo and register.
+      const note = notes[speedTier][musicStep++ & 7] * (burstTime ? 1.5 : 1);
+      oscillator.frequency.value = note;
+      gain.gain.setValueAtTime(0.065, audio.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, audio.currentTime + 0.2);
+      oscillator.connect(gain).connect(audio.destination);
+      oscillator.start();
+      oscillator.stop(audio.currentTime + 0.2);
+    }
+    musicTimer = setTimeout(play, burstTime ? 140 : 240 - speedTier * 20);
+  };
+  play();
 }
 
 function particles(x, y, hit) {
@@ -728,6 +757,7 @@ function start() {
     effectTime = shakeTime = freezeTime = 0;
     entities = [];
     tune([262, 330, 392]);
+    musicStart();
     draw();
   }
 }
