@@ -31,6 +31,7 @@ const formations = [
 let state = 0;
 let menuChoice = 0;
 let panelReturn = 0;
+let aboutTime = 0;
 let lane = 1;
 let playerX = 480;
 let lastTime = 0;
@@ -574,11 +575,16 @@ function drawControls() {
 
 function drawAbout() {
   drawPanel("ABOUT");
-  context.font = "22px sans-serif";
-  context.fillText("A 13 KB arcade runner about one unicorn", width / 2, 200);
-  context.fillText("with two tricks and a world that needs its color back.", width / 2, 240);
+  context.font = "18px sans-serif";
+  context.fillText("2026: SERVERS BOILED RIVERS FOR GHOST MONEY.", width / 2, 190);
+  context.fillText("THE FUTURE: THE SKY DIED UNDER SMOG AND GRAY CODE.", width / 2, 220);
   context.font = "bold 24px sans-serif";
-  context.fillText("In the end, there can be only one unicorn.", width / 2, 315);
+  // Let each extra claim land before adding the next one.
+  if (aboutTime > 1.6) context.fillText("IN THE END, THERE CAN BE ONLY ONE UNICORN!", width / 2, 270);
+  if (aboutTime > 2.9) context.fillText("... AND TWO TRICKS!", width / 2, 310);
+  if (aboutTime > 4.6) context.fillText("... IN 13 KB!", width / 2, 350);
+  context.font = "18px sans-serif";
+  context.fillText("TRICKS + STARS BUILD BURST.", width / 2, 385);
   drawOptions(menuItems(), 420);
 }
 
@@ -635,10 +641,18 @@ function draw() {
     context.fillStyle = ribbonColors[0];
     context.fillRect(85, 52, worldColor * 1.5, 16);
     context.fillStyle = "white";
-    context.fillText(burstTime ? "SPECTRAL BURST" : `COMBO ${combo}/8`, 24, 92);
+    context.fillText(
+      burstTime ? `BURST · INVINCIBLE ${burstTime.toFixed(1)}s · 2X SCORE` : `COMBO ${combo}/8`,
+      24,
+      92,
+    );
     context.textAlign = "right";
     context.font = "bold 24px sans-serif";
-    context.fillText(runTime >= 180 ? "ENDLESS" : ["DAWN", "STORM", "BLOOM"][speedTier], 936, 38);
+    context.fillText(
+      runTime >= 180 ? "ENDLESS" : `ACT ${speedTier + 1}/3 · ${["DAWN", "STORM", "BLOOM"][speedTier]}`,
+      936,
+      38,
+    );
     if (DEBUG) {
       context.font = "bold 16px sans-serif";
       context.fillText(
@@ -664,15 +678,15 @@ function draw() {
     if (actFlash) {
       context.textAlign = "center";
       context.font = "bold 42px sans-serif";
-      context.fillText(["DAWN", "STORM", "BLOOM"][speedTier], width / 2, 150);
+      context.fillText(`ACT ${speedTier + 1}/3 · ${["DAWN", "STORM", "BLOOM"][speedTier]}`, width / 2, 150);
     }
   }
   if (state === 0) {
-    drawMenu("TWO-TRICK UNICORN", "CHOOSE AN OPTION", `BEST ${best}`);
+    drawMenu("TWO-TRICK UNICORN", "SURVIVE THREE ACTS · RESTORE THE RAINBOW", `BEST ${best}`);
   } else if (state === 2) {
     drawMenu("GAME OVER", "THE GLOOM WON", `SCORE ${score()}   BEST ${best}`);
   } else if (state === 3) {
-    drawMenu("RAINBOW RESTORED!", `SCORE ${score()}`);
+    drawMenu("RAINBOW RESTORED!", "THREE ACTS COMPLETE", `SCORE ${score()}`);
   } else if (state === 4) {
     drawMenu("PAUSED", "THE RUN IS FROZEN");
   } else if (state === 5) {
@@ -733,6 +747,7 @@ function openPanel(next, origin) {
   state = next;
   panelReturn = origin;
   menuChoice = 0;
+  aboutTime = 0;
 }
 
 function activateMenu() {
@@ -928,6 +943,16 @@ function update(time) {
           learned |= 1;
           reward(50, 1);
           return true;
+        } else if (burstTime && entity.type !== bridge) {
+          // Burst contact clears hazards without stars or score.
+          sound(
+            entity.type === cloud ? 760 : 420,
+            0.1,
+            entity.type === cloud ? 1100 : 220,
+            "triangle",
+            0,
+            0.05,
+          );
         } else if (entity.type !== bridge && !protection && !burstTime) {
           worldColor -= 25;
           protection = 1;
@@ -960,6 +985,7 @@ function update(time) {
       formationDelay = 0.8;
     }
   }
+  if (state === 6) aboutTime = Math.min(5, aboutTime + delta);
 
   draw();
   requestAnimationFrame(update);
