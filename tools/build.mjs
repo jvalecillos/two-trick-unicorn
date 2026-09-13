@@ -48,7 +48,7 @@ async function build() {
   if (!result.code) throw Error("Terser produced no JavaScript");
   const bundled = html.replace(
     '<script src="game.js"></script>',
-    `<script>${result.code}</script>`,
+    () => `<script>${result.code}</script>`,
   );
   if (bundled === html) throw Error("Development script tag was not found");
   mkdirSync(outputDir, { recursive: true });
