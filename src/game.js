@@ -5,6 +5,7 @@ const DEBUG = true;
 const width = canvas.width;
 const height = canvas.height;
 const ribbonColors = ["#f45", "#ed4", "#57e"];
+const roadColors = ["#f60", "#7e2", "#a5f"];
 const cloud = 0;
 const star = 1;
 const rift = 2;
@@ -168,7 +169,7 @@ function drawRoad() {
     const bottomLeft = 100 + (index * 760) / 3;
     const bottomRight = 100 + ((index + 1) * 760) / 3;
 
-    context.fillStyle = ribbonColors[index];
+    context.fillStyle = roadColors[index];
     context.beginPath();
     context.moveTo(topLeft, 100);
     context.lineTo(topRight, 100);
@@ -443,8 +444,8 @@ function drawEntities() {
       context.fill();
       context.fillStyle = "#ff8bd5";
       context.beginPath();
-      context.arc(x - size * 0.35, y, size * 0.12, 0, 7);
-      context.arc(x + size * 0.35, y, size * 0.12, 0, 7);
+      context.ellipse(x - size * 0.35, y, size * 0.22, size * 0.09, 0.45, 0, 7);
+      context.ellipse(x + size * 0.35, y, size * 0.22, size * 0.09, -0.45, 0, 7);
       context.fill();
     } else {
       // A bridge covers the same outlined chasm used by its rift state.
@@ -492,14 +493,14 @@ function drawPanel(title) {
 
 function menuItems() {
   return state === 0
-    ? ["PLAY  ENTER", "CONTROLS", "ABOUT"]
+    ? ["PLAY  [ENTER]", "CONTROLS", "ABOUT"]
     : state === 2
-      ? ["RETRY  ENTER", "MAIN MENU  ESC"]
+      ? ["RETRY  [ENTER]", "MAIN MENU  [ESC]"]
       : state === 3
-        ? ["CONTINUE ENDLESS  ENTER", "MAIN MENU  ESC"]
+        ? ["CONTINUE ENDLESS  [ENTER]", "MAIN MENU  [ESC]"]
         : state === 4
-          ? ["RESUME  P / ESC", "CONTROLS", "MAIN MENU  Q"]
-          : ["BACK  ESC"];
+          ? ["RESUME  [P / ESC]", "CONTROLS", "MAIN MENU  [Q]"]
+          : ["BACK  [ESC]"];
 }
 
 function drawOptions(items, start = 215) {
