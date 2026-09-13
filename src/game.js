@@ -62,6 +62,8 @@ let best = 0;
 let audio;
 let musicTimer;
 let musicStep = 0;
+let musicMuted = false;
+let effectsMuted = false;
 let effectTime = 0;
 let effectX = 0;
 let effectY = 0;
@@ -91,6 +93,7 @@ function sound(
     const gain = audio.createGain();
     const start = audio.currentTime + delay;
     audio.resume();
+    if (effectsMuted) return;
     oscillator.type = type;
     oscillator.frequency.setValueAtTime(frequency * (0.98 + Math.random() * 0.04), start);
     oscillator.frequency.exponentialRampToValueAtTime(endFrequency, start + duration);
@@ -118,11 +121,11 @@ function musicStart() {
     if (state === 1) {
       const oscillator = audio.createOscillator();
       const gain = audio.createGain();
-      oscillator.type = "triangle";
+      const step = musicStep++ & 7;
       // Act roots rise, while Burst briefly doubles tempo and register.
-      const note = notes[speedTier][musicStep++ & 7] * (burstTime ? 1.5 : 1);
-      oscillator.frequency.value = note;
-      gain.gain.setValueAtTime(0.065, audio.currentTime);
+      oscillator.type = "triangle";
+      oscillator.frequency.value = notes[speedTier][step] * (burstTime ? 1.5 : 1);
+      gain.gain.setValueAtTime(musicMuted ? 0 : 0.065, audio.currentTime);
       gain.gain.exponentialRampToValueAtTime(0.001, audio.currentTime + 0.2);
       oscillator.connect(gain).connect(audio.destination);
       oscillator.start();
@@ -695,6 +698,12 @@ function draw() {
         65,
       );
     }
+    context.font = "bold 12px sans-serif";
+    context.fillText(
+      `${musicMuted ? "MUSIC OFF [M]" : "[M] MUSIC"} · ${effectsMuted ? "SFX OFF [N]" : "[N] SFX"}`,
+      936,
+      88,
+    );
     const lesson =
       !(learned & 1) && entities.some((entity) => entity.type === rift)
         ? "PRESS K TO LEAP RIFTS"
@@ -836,6 +845,12 @@ addEventListener("keydown", (event) => {
       menuChoice = (menuChoice + direction + count) % count;
     } else if (key === "enter" && !event.repeat) activateMenu();
     else return;
+    event.preventDefault();
+    return;
+  }
+  if (key === "m" || key === "n") {
+    if (key === "m") musicMuted = !musicMuted;
+    else effectsMuted = !effectsMuted;
     event.preventDefault();
     return;
   }
