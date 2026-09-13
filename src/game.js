@@ -24,6 +24,8 @@ const formations = [
   "rrr",
   "ccc",
   "r../..s/..c/s..",
+  ".r./s.s",
+  ".c./s.s",
 ];
 // States: 0 title, 1 run, 2 loss, 3 victory, 4 pause, 5 controls, 6 about.
 let state = 0;
@@ -38,6 +40,7 @@ let formationDelay = 0;
 let formationRows = [];
 let formationCount = 0;
 let mirrorFormation = false;
+let dawnOffset = 0;
 let leapTime = 0;
 let blastTime = 0;
 let speedTier = 0;
@@ -371,6 +374,10 @@ function scheduleFormation() {
   if (!formationRows.length) {
     if (DEBUG && formationTest === 24) formationTest = -1;
     const testing = DEBUG && formationTest >= 0;
+    const dawnCycle = !speedTier && formationCount >= 4;
+    const dawnStep = (formationCount - 4 + dawnOffset) % 6;
+    const dawnLane = dawnStep % 3;
+    // Dawn rotates lane and hazard type. Every lane appears within three formations.
     // Later acts drop the simplest formations while retaining proven patterns.
     const formationStart = speedTier === 2 ? 6 : 4;
     const formation =
@@ -378,12 +385,19 @@ function scheduleFormation() {
         ? formations[formationTest >> 1]
         : formationCount < 4
         ? formations[formationCount]
+        : dawnCycle
+        ? formations[
+            dawnLane === 1 ? 12 + (dawnStep & 1) : 4 + (dawnStep & 1)
+          ]
         : formations[
-            formationStart +
-              ((Math.random() * (speedTier ? 12 - formationStart : 3)) | 0)
+            formationStart + ((Math.random() * (12 - formationStart)) | 0)
           ];
     formationRows = formation.split("/");
-    mirrorFormation = testing ? formationTest++ % 2 : Math.random() > 0.5;
+    mirrorFormation = testing
+      ? formationTest++ % 2
+      : dawnCycle
+        ? dawnLane === 2
+        : Math.random() > 0.5;
     formationCount++;
   }
   spawnRow(formationRows.shift());
@@ -685,6 +699,7 @@ function start() {
     formationDelay = 0.8;
     formationRows = [];
     formationCount = 0;
+    dawnOffset = (Math.random() * 6) | 0;
     leapTime = 0;
     blastTime = 0;
     speedTier = 0;
